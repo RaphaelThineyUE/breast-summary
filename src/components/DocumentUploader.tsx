@@ -1,0 +1,240 @@
+import React, { useCallback, useState } from 'react';
+import { Upload, FileText, X, Loader, AlertCircle } from 'lucide-react';
+import { summarizeDocument } from '../services/openaiService';
+import './DocumentUploader.css';
+
+interface DocumentSummary {
+  filename: string;
+  content: string;
+  summary: string;
+  timestamp: Date;
+}
+
+interface DocumentUploaderProps {
+  onSummariesGenerated: (summaries: DocumentSummary[]) => void;
+  setIsProcessing: (processing: boolean) => void;
+  isProcessing: boolean;
+}
+
+interface UploadedFile {
+  file: File;
+  content: string;
+  id: string;
+}
+
+const DocumentUploader: React.FC<DocumentUploaderProps> = ({
+  onSummariesGenerated,
+  setIsProcessing,
+  isProcessing
+}) => {
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [dragActive, setDragActive] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const readFileContent = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (e.target?.result) {
+          resolve(e.target.result as string);
+        } else {
+          reject(new Error('Failed to read file'));
+        }
+      };
+      reader.onerror = () => reject(new Error('Error reading file'));
+      reader.readAsText(file);
+    });
+  };
+
+  const handleFiles = useCallback(async (files: FileList) => {
+    setError(null);
+    const fileArray = Array.from(files);
+    const textFiles = fileArray.filter(file =>
+      file.type === 'text/plain' ||
+      file.name.endsWith('.txt') ||
+      file.name.endsWith('.md') ||
+      file.name.endsWith('.json')
+    );
+
+    if (textFiles.length === 0) {
+      setError('Please upload text files only (.txt, .md, .json)');
+      return;
+    }
+
+    try {
+      const processedFiles: UploadedFile[] = [];
+      for (const file of textFiles) {
+        const content = await readFileContent(file);
+        processedFiles.push({
+          file,
+          content,
+          id: Math.random().toString(36).substr(2, 9)
+        });
+      }
+      setUploadedFiles(prev => [...prev, ...processedFiles]);
+    } catch {
+      setError('Error reading files. Please try again.');
+    }
+  }, []);
+
+  const handleDrag = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setDragActive(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFiles(e.dataTransfer.files);
+    }
+  }, [handleFiles]);
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      handleFiles(e.target.files);
+    }
+  };
+
+  const removeFile = (id: string) => {
+    setUploadedFiles(prev => prev.filter(file => file.id !== id));
+  };
+
+  const generateSummaries = async () => {
+    if (uploadedFiles.length === 0) {
+      setError('Please upload at least one document');
+      return;
+    }
+
+    setIsProcessing(true);
+    setError(null);
+
+    try {
+      const summaries: DocumentSummary[] = [];
+
+      for (const file of uploadedFiles) {
+        try {
+          const summary = await summarizeDocument(file.content);
+          summaries.push({
+            filename: file.file.name,
+            content: file.content,
+            summary,
+            timestamp: new Date()
+          });
+        } catch (error) {
+          console.error(`Error summarizing ${file.file.name}:`, error);
+          // Continue with other files even if one fails
+        }
+      }
+
+      if (summaries.length > 0) {
+        onSummariesGenerated(summaries);
+        setUploadedFiles([]); // Clear uploaded files after processing
+      } else {
+        setError('Failed to generate summaries. Please check your API configuration.');
+      }
+    } catch {
+      setError('Error processing documents. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const clearFiles = () => {
+    setUploadedFiles([]);
+    setError(null);
+  };
+
+  return (
+    <div className="document-uploader">
+      <div
+        className={`drop-zone ${dragActive ? 'active' : ''} ${uploadedFiles.length > 0 ? 'has-files' : ''}`}
+        onDragEnter={handleDrag}
+        onDragLeave={handleDrag}
+        onDragOver={handleDrag}
+        onDrop={handleDrop}
+      >
+        <input
+          type="file"
+          multiple
+          accept=".txt,.md,.json,text/plain"
+          onChange={handleFileInput}
+          className="file-input"
+          id="file-upload"
+          disabled={isProcessing}
+        />
+
+        <div className="drop-zone-content">
+          <Upload size={48} className="upload-icon" />
+          <h3>Drop your documents here</h3>
+          <p>or <label htmlFor="file-upload" className="file-label">browse files</label></p>
+          <p className="file-types">Supports: .txt, .md, .json files</p>
+        </div>
+      </div>
+
+      {error && (
+        <div className="error-message">
+          <AlertCircle size={20} />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {uploadedFiles.length > 0 && (
+        <div className="uploaded-files">
+          <div className="files-header">
+            <h4>Uploaded Files ({uploadedFiles.length})</h4>
+            <button onClick={clearFiles} className="clear-files-btn" disabled={isProcessing}>
+              Clear All
+            </button>
+          </div>
+
+          <div className="files-list">
+            {uploadedFiles.map((file) => (
+              <div key={file.id} className="file-item">
+                <div className="file-info">
+                  <FileText size={20} />
+                  <span className="filename">{file.file.name}</span>
+                  <span className="file-size">
+                    ({(file.file.size / 1024).toFixed(1)} KB)
+                  </span>
+                </div>
+                <button
+                  onClick={() => removeFile(file.id)}
+                  className="remove-file-btn"
+                  disabled={isProcessing}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="action-buttons">
+            <button
+              onClick={generateSummaries}
+              disabled={isProcessing || uploadedFiles.length === 0}
+              className="generate-btn"
+            >
+              {isProcessing ? (
+                <>
+                  <Loader className="spinner" size={20} />
+                  Generating Summaries...
+                </>
+              ) : (
+                `Generate Summaries (${uploadedFiles.length})`
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default DocumentUploader;

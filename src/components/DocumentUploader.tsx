@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { Upload, FileText, X, Loader, AlertCircle } from 'lucide-react';
 import { summarizeDocument } from '../services/openaiService';
+import { extractTextFromPdf } from '../services/pdfService';
 import './DocumentUploader.css';
 
 interface DocumentSummary {
@@ -31,49 +32,47 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const readFileContent = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        if (e.target?.result) {
-          resolve(e.target.result as string);
-        } else {
-          reject(new Error('Failed to read file'));
-        }
-      };
-      reader.onerror = () => reject(new Error('Error reading file'));
-      reader.readAsText(file);
-    });
-  };
-
   const handleFiles = useCallback(async (files: FileList) => {
     setError(null);
     const fileArray = Array.from(files);
-    const textFiles = fileArray.filter(file =>
-      file.type === 'text/plain' ||
-      file.name.endsWith('.txt') ||
-      file.name.endsWith('.md') ||
-      file.name.endsWith('.json')
+    const pdfFiles = fileArray.filter(file =>
+      file.type === 'application/pdf' ||
+      file.name.toLowerCase().endsWith('.pdf')
     );
 
-    if (textFiles.length === 0) {
-      setError('Please upload text files only (.txt, .md, .json)');
+    if (pdfFiles.length === 0) {
+      setError('Please upload PDF files only (.pdf)');
       return;
     }
 
     try {
       const processedFiles: UploadedFile[] = [];
-      for (const file of textFiles) {
-        const content = await readFileContent(file);
+      const emptyFiles: string[] = [];
+      for (const file of pdfFiles) {
+        const content = await extractTextFromPdf(file);
+        if (!content.trim()) {
+          emptyFiles.push(file.name);
+          continue;
+        }
         processedFiles.push({
           file,
           content,
           id: Math.random().toString(36).substr(2, 9)
         });
       }
+
+      if (processedFiles.length === 0) {
+        setError('No readable text found in the selected PDF files.');
+        return;
+      }
+
+      if (emptyFiles.length > 0) {
+        setError(`No readable text found in: ${emptyFiles.join(', ')}`);
+      }
+
       setUploadedFiles(prev => [...prev, ...processedFiles]);
     } catch {
-      setError('Error reading files. Please try again.');
+      setError('Error extracting text from PDF. Please try again.');
     }
   }, []);
 
@@ -108,7 +107,7 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
 
   const generateSummaries = async () => {
     if (uploadedFiles.length === 0) {
-      setError('Please upload at least one document');
+      setError('Please upload at least one PDF document');
       return;
     }
 
@@ -163,7 +162,7 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
         <input
           type="file"
           multiple
-          accept=".txt,.md,.json,text/plain"
+          accept=".pdf,application/pdf"
           onChange={handleFileInput}
           className="file-input"
           id="file-upload"
@@ -172,9 +171,9 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
 
         <div className="drop-zone-content">
           <Upload size={48} className="upload-icon" />
-          <h3>Drop your documents here</h3>
+          <h3>Drop your PDF documents here</h3>
           <p>or <label htmlFor="file-upload" className="file-label">browse files</label></p>
-          <p className="file-types">Supports: .txt, .md, .json files</p>
+          <p className="file-types">Supports: .pdf files</p>
         </div>
       </div>
 

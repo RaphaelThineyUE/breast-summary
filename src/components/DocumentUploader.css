@@ -154,6 +154,13 @@
   space-y: 0.5rem;
 }
 
+.file-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
 .file-item {
   display: flex;
   justify-content: space-between;
@@ -202,6 +209,43 @@
 .remove-file-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.extracted-text {
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 0.75rem 1rem 1rem;
+}
+
+.extracted-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+.char-count {
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.extracted-content {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: #374151;
+  background: #f9fafb;
+  border-radius: 6px;
+  padding: 0.75rem;
+  max-height: 220px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* Action Buttons */
@@ -271,6 +315,12 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 0.5rem;
+  }
+
+  .extracted-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
   }
 
   .remove-file-btn {

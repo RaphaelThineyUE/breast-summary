@@ -28,6 +28,10 @@ export const summarizeDocument = async (
 ): Promise<string> => {
   try {
     const openai = getOpenAIClient();
+    const model = import.meta.env.VITE_OPENAI_MODEL ?? 'gpt-4o-mini';
+    console.log('[openaiService] Starting summary request.');
+    console.log(`[openaiService] Using model: ${model}`);
+    console.log(`[openaiService] Input length (chars): ${content.length}`);
 
     // Prepare the prompt for summarization
     const prompt = `Please provide a concise and informative summary of the following document. 
@@ -42,28 +46,31 @@ ${content}
 
 Summary:`;
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
+    const response = await openai.responses.create({
+      model ,
+      input: [
         {
-          role: "system",
-          content: "You are a helpful assistant that creates clear, concise, and informative summaries of documents. Focus on extracting the most important information while maintaining clarity and readability."
+          role: 'system',
+          content:
+            'You are a helpful assistant that creates clear, concise, and informative summaries of documents. Focus on extracting the most important information while maintaining clarity and readability.'
         },
         {
-          role: "user",
+          role: 'user',
           content: prompt
         }
       ],
-      max_tokens: Math.min(Math.ceil(maxLength * 1.5), 500), // Allow some buffer for the summary
-      temperature: 0.3, // Lower temperature for more consistent summaries
+      max_output_tokens: Math.min(Math.ceil(maxLength * 1.5), 500),
+     temperature: 0.3
     });
-
-    const summary = completion.choices[0]?.message?.content?.trim();
+ 
+    console.log('[openaiService] Response received.');
+    const summary = response.output_text?.trim();
 
     if (!summary) {
       throw new Error('No summary generated from OpenAI response');
     }
 
+    console.log(`[openaiService] Summary length (chars): ${summary.length}`);
     return summary;
 
   } catch (error: unknown) {
@@ -117,11 +124,13 @@ export const batchSummarizeDocuments = async (
 };
 
 /**
- * Check if OpenAI API is properly configured
+ * Check if OpenAI API is properly configured, write to console.log
  * @returns boolean - True if API key is available
- */
-export const isOpenAIConfigured = (): boolean => {
-  return !!import.meta.env.VITE_OPENAI_API_KEY;
+ */ 
+export const isOpenAIConfigured = (): boolean => { 
+  const configured = !!import.meta.env.VITE_OPENAI_API_KEY;
+  console.log(`[openaiService] OpenAI API key configured: ${configured}`);
+  return configured;
 };
 
 /**
@@ -135,14 +144,18 @@ export const testOpenAIConnection = async (): Promise<boolean> => {
     }
 
     const openai = getOpenAIClient();
+    const model = import.meta.env.VITE_OPENAI_MODEL ?? 'gpt-4o-mini';
+    console.log('[openaiService] Testing OpenAI connection.');
+    console.log(`[openaiService] Using model: ${model}`);
 
     // Test with a simple request
-    await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [{ role: "user", content: "Hello" }],
-      max_tokens: 5
+    await openai.responses.create({
+      model,
+      input: [{ role: 'user', content: 'Hello' }],
+      max_output_tokens: 5
     });
 
+    console.log('[openaiService] Connection test succeeded.');
     return true;
   } catch (error) {
     console.error('OpenAI connection test failed:', error);

@@ -195,21 +195,32 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
 
           <div className="files-list">
             {uploadedFiles.map((file) => (
-              <div key={file.id} className="file-item">
-                <div className="file-info">
-                  <FileText size={20} />
-                  <span className="filename">{file.file.name}</span>
-                  <span className="file-size">
-                    ({(file.file.size / 1024).toFixed(1)} KB)
-                  </span>
+              <div key={file.id} className="file-preview">
+                <div className="file-item">
+                  <div className="file-info">
+                    <FileText size={20} />
+                    <span className="filename">{file.file.name}</span>
+                    <span className="file-size">
+                      ({(file.file.size / 1024).toFixed(1)} KB)
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => removeFile(file.id)}
+                    className="remove-file-btn"
+                    disabled={isProcessing}
+                  >
+                    <X size={16} />
+                  </button>
                 </div>
-                <button
-                  onClick={() => removeFile(file.id)}
-                  className="remove-file-btn"
-                  disabled={isProcessing}
-                >
-                  <X size={16} />
-                </button>
+                <div className="extracted-text">
+                  <div className="extracted-header">
+                    <span>Extracted Text</span>
+                    <span className="char-count">
+                      {file.content.length.toLocaleString()} characters
+                    </span>
+                  </div>
+                  <pre className="extracted-content">{file.content}</pre>
+                </div>
               </div>
             ))}
           </div>

@@ -95,7 +95,19 @@ const extractTextWithOcr = async (pdf: PDFDocumentProxy, pageNumber: number) => 
   return result.data.text;
 };
 
-export const extractTextFromPdf = async (file: File): Promise<string> => {
+export interface PdfExtractionProgress {
+  totalPages: number;
+  textProcessed: number;
+  ocrProcessed: number;
+  ocrTotal: number;
+  currentPage: number;
+  stage: 'text' | 'ocr';
+}
+
+export const extractTextFromPdf = async (
+  file: File,
+  onProgress?: (progress: PdfExtractionProgress) => void
+): Promise<string> => {
   console.log('[pdfService] Starting PDF text extraction.');
   ensurePdfWorker();
 
@@ -105,10 +117,23 @@ export const extractTextFromPdf = async (file: File): Promise<string> => {
   const pdf = await getDocument({ data }).promise;
   console.log(`[pdfService] PDF loaded with ${pdf.numPages} pages.`);
   const pageTexts: string[] = [];
+  const progress: PdfExtractionProgress = {
+    totalPages: pdf.numPages,
+    textProcessed: 0,
+    ocrProcessed: 0,
+    ocrTotal: 0,
+    currentPage: 0,
+    stage: 'text'
+  };
 
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
     console.log(`[pdfService] Processing page ${pageNumber}/${pdf.numPages}.`);
+    progress.currentPage = pageNumber;
+    progress.stage = 'text';
+    onProgress?.({ ...progress });
     const text = await extractTextFromPage(pdf, pageNumber);
+    progress.textProcessed += 1;
+    onProgress?.({ ...progress });
 
     if (text.trim()) {
       console.log(`[pdfService] Page ${pageNumber} has text content.`);
@@ -117,7 +142,12 @@ export const extractTextFromPdf = async (file: File): Promise<string> => {
     }
 
     console.log(`[pdfService] Page ${pageNumber} is empty, falling back to OCR.`);
+    progress.ocrTotal += 1;
+    progress.stage = 'ocr';
+    onProgress?.({ ...progress });
     const ocrText = await extractTextWithOcr(pdf, pageNumber);
+    progress.ocrProcessed += 1;
+    onProgress?.({ ...progress });
     if (ocrText.trim()) {
       console.log(`[pdfService] OCR returned text for page ${pageNumber}.`);
       pageTexts.push(ocrText);

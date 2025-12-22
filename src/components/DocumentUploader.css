@@ -103,6 +103,76 @@
   font-size: 0.875rem;
 }
 
+/* Extraction Status */
+.extraction-status {
+  margin-top: 1rem;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.08);
+}
+
+.status-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+.status-title {
+  font-weight: 600;
+}
+
+.status-page {
+  color: #6b7280;
+}
+
+.status-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.status-track {
+  width: 100%;
+  height: 8px;
+  background: #f3f4f6;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.status-track-ocr {
+  background: #fef3c7;
+}
+
+.status-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}
+
+.status-text {
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+}
+
+.status-ocr {
+  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+}
+
+.status-meta {
+  margin-top: 0.5rem;
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: #6b7280;
+}
+
 /* Uploaded Files */
 .uploaded-files {
   background: rgba(255, 255, 255, 0.95);

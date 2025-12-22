@@ -1,7 +1,7 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Upload, FileText, X, Loader, AlertCircle } from 'lucide-react';
 import { summarizeDocument } from '../services/openaiService';
-import { extractTextFromPdf } from '../services/pdfService';
+import { extractTextFromPdf, type PdfExtractionProgress } from '../services/pdfService';
 import './DocumentUploader.css';
 
 interface DocumentSummary {
@@ -23,6 +23,10 @@ interface UploadedFile {
   id: string;
 }
 
+interface ExtractionStatus extends PdfExtractionProgress {
+  fileName: string;
+}
+
 const DocumentUploader: React.FC<DocumentUploaderProps> = ({
   onSummariesGenerated,
   setIsProcessing,
@@ -31,6 +35,23 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractionStatus, setExtractionStatus] = useState<ExtractionStatus | null>(null);
+  const isBusy = isProcessing || isExtracting;
+  const progressPercents = useMemo(() => {
+    if (!extractionStatus) {
+      return { text: 0, ocr: 0 };
+    }
+    const text =
+      extractionStatus.totalPages > 0
+        ? Math.round((extractionStatus.textProcessed / extractionStatus.totalPages) * 100)
+        : 0;
+    const ocr =
+      extractionStatus.ocrTotal > 0
+        ? Math.round((extractionStatus.ocrProcessed / extractionStatus.ocrTotal) * 100)
+        : 0;
+    return { text, ocr };
+  }, [extractionStatus]);
 
   const handleFiles = useCallback(async (files: FileList) => {
     setError(null);
@@ -46,10 +67,16 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
     }
 
     try {
+      setIsExtracting(true);
       const processedFiles: UploadedFile[] = [];
       const emptyFiles: string[] = [];
       for (const file of pdfFiles) {
-        const content = await extractTextFromPdf(file);
+        const content = await extractTextFromPdf(file, (progress) => {
+          setExtractionStatus({
+            fileName: file.name,
+            ...progress
+          });
+        });
         if (!content.trim()) {
           emptyFiles.push(file.name);
           continue;
@@ -73,6 +100,9 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
       setUploadedFiles(prev => [...prev, ...processedFiles]);
     } catch {
       setError('Error extracting text from PDF. Please try again.');
+    } finally {
+      setIsExtracting(false);
+      setExtractionStatus(null);
     }
   }, []);
 
@@ -166,7 +196,7 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
           onChange={handleFileInput}
           className="file-input"
           id="file-upload"
-          disabled={isProcessing}
+          disabled={isBusy}
         />
 
         <div className="drop-zone-content">
@@ -184,11 +214,47 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
         </div>
       )}
 
+      {extractionStatus && (
+        <div className="extraction-status" role="status" aria-live="polite">
+          <div className="status-header">
+            <span className="status-title">Processing {extractionStatus.fileName}</span>
+            <span className="status-page">
+              Page {extractionStatus.currentPage || 1}/
+              {extractionStatus.totalPages || '...'}
+            </span>
+          </div>
+          <div className="status-bars">
+            <div className="status-track">
+              <div
+                className="status-fill status-text"
+                style={{ width: `${progressPercents.text}%` }}
+              />
+            </div>
+            <div className="status-track status-track-ocr">
+              <div
+                className="status-fill status-ocr"
+                style={{ width: `${progressPercents.ocr}%` }}
+              />
+            </div>
+          </div>
+          <div className="status-meta">
+            <span>
+              Text extraction: {extractionStatus.textProcessed}/
+              {extractionStatus.totalPages} pages
+            </span>
+            <span>
+              OCR: {extractionStatus.ocrProcessed}/
+              {extractionStatus.ocrTotal} pages
+            </span>
+          </div>
+        </div>
+      )}
+
       {uploadedFiles.length > 0 && (
         <div className="uploaded-files">
           <div className="files-header">
             <h4>Uploaded Files ({uploadedFiles.length})</h4>
-            <button onClick={clearFiles} className="clear-files-btn" disabled={isProcessing}>
+            <button onClick={clearFiles} className="clear-files-btn" disabled={isBusy}>
               Clear All
             </button>
           </div>
@@ -207,7 +273,7 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
                   <button
                     onClick={() => removeFile(file.id)}
                     className="remove-file-btn"
-                    disabled={isProcessing}
+                    disabled={isBusy}
                   >
                     <X size={16} />
                   </button>
@@ -228,13 +294,18 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
           <div className="action-buttons">
             <button
               onClick={generateSummaries}
-              disabled={isProcessing || uploadedFiles.length === 0}
+              disabled={isBusy || uploadedFiles.length === 0}
               className="generate-btn"
             >
               {isProcessing ? (
                 <>
                   <Loader className="spinner" size={20} />
                   Generating Summaries...
+                </>
+              ) : isExtracting ? (
+                <>
+                  <Loader className="spinner" size={20} />
+                  Extracting Text...
                 </>
               ) : (
                 `Generate Summaries (${uploadedFiles.length})`

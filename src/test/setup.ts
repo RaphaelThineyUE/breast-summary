@@ -1,4 +1,4 @@
-import { expect } from 'vitest';
+import { expect, vi } from 'vitest';
 import * as matchers from '@testing-library/jest-dom/matchers';
 import type { } from '@testing-library/jest-dom/vitest';
 
@@ -27,3 +27,35 @@ if (!Promise.withResolvers) {
     return { promise, resolve, reject };
   };
 }
+
+const suppressedWarnings = [
+  'Cannot access the `require` function',
+  'Cannot polyfill `DOMMatrix`',
+  'Cannot polyfill `ImageData`',
+  'Cannot polyfill `Path2D`',
+  'Unable to load font data'
+];
+
+const shouldSuppressConsoleOutput = (args: unknown[]) => {
+  const message = args.map(String).join(' ');
+  if (suppressedWarnings.some((warning) => message.includes(warning))) {
+    return true;
+  }
+  return false;
+};
+
+const originalWarn = console.warn.bind(console);
+vi.spyOn(console, 'warn').mockImplementation((...args) => {
+  if (shouldSuppressConsoleOutput(args)) {
+    return;
+  }
+  originalWarn(...args);
+});
+
+const originalLog = console.log.bind(console);
+vi.spyOn(console, 'log').mockImplementation((...args) => {
+  if (shouldSuppressConsoleOutput(args)) {
+    return;
+  }
+  originalLog(...args);
+});

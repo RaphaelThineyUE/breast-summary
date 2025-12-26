@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { FileText, Calendar, ChevronDown, ChevronUp, Copy, Download, Check } from 'lucide-react';
+import { FileText, Calendar, Copy, Download, Check } from 'lucide-react';
 import './SummaryDisplay.css';
 
 interface DocumentSummary {
   filename: string;
   content: string;
   summary: string;
+  radiologyJson?: unknown;
   timestamp: Date;
 }
 
@@ -14,17 +15,20 @@ interface SummaryDisplayProps {
 }
 
 const SummaryDisplay: React.FC<SummaryDisplayProps> = ({ summaries }) => {
-  const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
   const [copiedItems, setCopiedItems] = useState<Set<number>>(new Set());
 
-  const toggleExpanded = (index: number) => {
-    const newExpanded = new Set(expandedItems);
-    if (newExpanded.has(index)) {
-      newExpanded.delete(index);
-    } else {
-      newExpanded.add(index);
+  const formatRadiologyJson = (value: DocumentSummary['radiologyJson']) => {
+    if (value === null || value === undefined) {
+      return 'No radiology JSON available.';
     }
-    setExpandedItems(newExpanded);
+    if (typeof value === 'string') {
+      return value;
+    }
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch {
+      return String(value);
+    }
   };
 
   const copyToClipboard = async (text: string, index: number) => {
@@ -81,7 +85,6 @@ ${summary.content}`;
   return (
     <div className="summary-display">
       {summaries.map((summary, index) => {
-        const isExpanded = expandedItems.has(index);
         const isCopied = copiedItems.has(index);
 
         return (
@@ -115,13 +118,6 @@ ${summary.content}`;
                   <Download size={16} />
                 </button>
 
-                <button
-                  onClick={() => toggleExpanded(index)}
-                  className="action-btn expand-btn"
-                  title={isExpanded ? "Collapse" : "Expand"}
-                >
-                  {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                </button>
               </div>
             </div>
 
@@ -131,14 +127,19 @@ ${summary.content}`;
                 <div className="summary-text">{summary.summary}</div>
               </div>
 
-              {isExpanded && (
-                <div className="original-content-section">
-                  <h4 className="section-title">Original Content</h4>
-                  <div className="original-content">
-                    <pre>{summary.content}</pre>
-                  </div>
+              <div className="summary-section radiology-section">
+                <h4 className="section-title">Radiology JSON</h4>
+                <div className="radiology-json">
+                  <pre>{formatRadiologyJson(summary.radiologyJson)}</pre>
                 </div>
-              )}
+              </div>
+
+              <div className="summary-section original-content-section">
+                <h4 className="section-title">Raw Text</h4>
+                <div className="original-content">
+                  <pre>{summary.content}</pre>
+                </div>
+              </div>
             </div>
           </div>
         );

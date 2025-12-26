@@ -5,11 +5,12 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import App from '../App';
-import { summarizeDocument } from '../services/openaiService';
+import { summarizeDocument, summarizeRadiologyReportJson } from '../services/openaiService';
 import { extractTextFromPdf } from '../services/pdfService';
 
 vi.mock('../services/openaiService', () => ({
-  summarizeDocument: vi.fn()
+  summarizeDocument: vi.fn(),
+  summarizeRadiologyReportJson: vi.fn()
 }));
 
 vi.mock('../services/pdfService', () => ({
@@ -80,19 +81,73 @@ describe('sample PDF uploads', () => {
     await user.upload(input, [textBasedSample.file, imageBasedSample.file]);
 
     await waitFor(() => {
-      expect(screen.getByText(textBasedSample.file.name)).toBeInTheDocument();
-      expect(screen.getByText(imageBasedSample.file.name)).toBeInTheDocument();
+      expect(screen.getAllByText(textBasedSample.file.name).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(imageBasedSample.file.name).length).toBeGreaterThan(0);
     });
 
     await user.click(screen.getByRole('button', { name: /generate summaries/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(textBasedSummary)).toBeInTheDocument();
-      expect(screen.getByText(imageBasedSummary)).toBeInTheDocument();
+      expect(screen.getAllByText(textBasedSummary).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(imageBasedSummary).length).toBeGreaterThan(0);
     });
 
     expect(extractTextFromPdf).toHaveBeenCalledTimes(2);
     expect(summarizeDocument).toHaveBeenCalledWith(textBasedSummary);
     expect(summarizeDocument).toHaveBeenCalledWith(imageBasedSummary);
+  });
+
+  it('extracts and merges radiology data across multiple PDFs', async () => {
+    const user = userEvent.setup();
+    const textBasedSample = await readSamplePdf('text-based-pdf-sample.pdf');
+    const imageBasedSample = await readSamplePdf('image-based-pdf-sample.pdf');
+
+    vi.mocked(extractTextFromPdf).mockImplementation(async (file: File) => {
+      return `Report content for ${file.name} with clinical details.`;
+    });
+
+    const extraction: import('../models/radiology-extraction').RadiologyExtraction = {
+      summary: 'Combined radiology summary.',
+      birads: { value: 2, confidence: 'high', evidence: ['BI-RADS 2'] },
+      breast_density: { value: 'B', evidence: ['Density B'] },
+      exam: { type: 'screening', laterality: 'bilateral', evidence: ['Screening exam'] },
+      comparison: { prior_exam_date: '2023-01-01', evidence: ['Prior exam'] },
+      findings: [
+        {
+          laterality: 'left',
+          location: 'upper outer quadrant',
+          description: 'Benign calcifications.',
+          assessment: 'benign',
+          evidence: ['Calcifications']
+        }
+      ],
+      recommendations: [
+        { action: 'Routine screening', timeframe: '12 months', evidence: ['Follow-up'] }
+      ],
+      red_flags: []
+    };
+
+    vi.mocked(summarizeRadiologyReportJson)
+      .mockResolvedValueOnce(extraction)
+      .mockResolvedValueOnce(extraction);
+
+    render(<App />);
+
+    const input = screen.getByLabelText(/browse files/i) as HTMLInputElement;
+    await user.upload(input, [textBasedSample.file, imageBasedSample.file]);
+
+    await waitFor(() => {
+      expect(screen.getAllByText(textBasedSample.file.name).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(imageBasedSample.file.name).length).toBeGreaterThan(0);
+    });
+
+    await user.click(screen.getByRole('button', { name: /extract radiology batch/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Radiology batch summary/i)).toBeInTheDocument();
+      expect(screen.getByText(/BI-RADS: 2/i)).toBeInTheDocument();
+    });
+
+    expect(summarizeRadiologyReportJson).toHaveBeenCalledTimes(2);
   });
 });

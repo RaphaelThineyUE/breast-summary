@@ -5,10 +5,8 @@ const createMock = vi.fn();
 
 vi.mock('openai', () => ({
   default: class OpenAI {
-    chat = {
-      completions: {
-        create: createMock
-      }
+    responses = {
+      create: createMock
     };
   }
 }));
@@ -24,7 +22,7 @@ describe('openai summarization', () => {
   it('summarizes text into 10 words or less', async () => {
     const responseSummary = 'Ten words or less summary goes right here.';
     createMock.mockResolvedValueOnce({
-      choices: [{ message: { content: responseSummary } }]
+      output_text: responseSummary
     });
 
     const summary = await summarizeDocument(
@@ -36,7 +34,7 @@ describe('openai summarization', () => {
     expect(summary.split(/\s+/)).toHaveLength(8);
     expect(createMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        max_tokens: 15
+        max_output_tokens: 15
       })
     );
   });

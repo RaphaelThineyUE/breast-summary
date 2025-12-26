@@ -6,7 +6,8 @@ import { summarizeDocument } from '../services/openaiService';
 import { extractTextFromPdf } from '../services/pdfService';
 
 vi.mock('../services/openaiService', () => ({
-  summarizeDocument: vi.fn()
+  summarizeDocument: vi.fn(),
+  summarizeRadiologyReportJson: vi.fn()
 }));
 
 vi.mock('../services/pdfService', () => ({
@@ -41,7 +42,7 @@ describe('document upload and summarization', () => {
       expect(screen.getByText(summaryText)).toBeInTheDocument();
     });
 
-    expect(extractTextFromPdf).toHaveBeenCalledWith(file);
+    expect(extractTextFromPdf).toHaveBeenCalledWith(file, expect.any(Function));
     expect(summarizeDocument).toHaveBeenCalledWith(pdfText);
   });
 });
